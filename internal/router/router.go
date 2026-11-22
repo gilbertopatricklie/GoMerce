@@ -1,9 +1,11 @@
 package router
 
 import (
+	"log/slog"
+
 	"gomerce/internal/handler"
 	"gomerce/internal/middleware"
-	"log/slog"
+	"gomerce/internal/response"
 
 	"github.com/gin-gonic/gin"
 )
@@ -12,16 +14,28 @@ import (
 func SetupRouter(logger *slog.Logger) *gin.Engine {
 	router := gin.New()
 
+	router.HandleMethodNotAllowed = true
+
 	router.Use(gin.Recovery())
 	//Custom middleware from internal/middleware/request_id.go
 	router.Use(middleware.RequestID())
 	//custom middleware from internal/middleware/access_log.go
 	//AccessLog after RequestID is because AccessLog requires request_id, generated from RequestID
 	router.Use(middleware.AccessLog(logger))
+	//Handles if no Route requested exists
+	router.NoRoute(func(c *gin.Context) {
+		response.Fail(c, 404, "ROUTE_NOT_FOUND", "Requested Endpoint Does Not Exist", nil)
+	})
+	//Handles if Method not allowed on certain endpoint
+	router.NoMethod(func(c *gin.Context) {
+		response.Fail(c, 405, "METHOD_NOT_ALLOWED", "HTTP Method is Not Allowed for This Endpoint", nil)
+	})
 
+	//Routes Handlers
 	healthHandler := handler.NewHealthHandler()
 	productHandler := handler.NewProductHandler()
 
+	//Endpoint Method
 	router.GET("/health", healthHandler.Check)
 	router.POST("/products", productHandler.Create)
 
