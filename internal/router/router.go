@@ -20,8 +20,10 @@ func SetupRouter(logger *slog.Logger) *gin.Engine {
 	router.Use(middleware.AccessLog(logger))
 
 	healthHandler := handler.NewHealthHandler()
+	productHandler := handler.NewProductHandler()
 
 	router.GET("/health", healthHandler.Check)
+	router.POST("/products", productHandler.Create)
 
 	return router
 }
