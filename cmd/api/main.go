@@ -1,36 +1,107 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log/slog"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"gomerce/internal/config"
 	"gomerce/internal/logger"
 	"gomerce/internal/router"
 )
 
-func main()  {
-	cfg, err := config.Load()
-	if err != nil {
-		slog.Error("Failed to load configuration", slog.String("error", err.Error()))
+func main() {
+    if err := run(); err != nil {
+        slog.Error("Application stopped with error",
+            slog.String("error", err.Error()),
+        )
 
-		os.Exit(1)
-	}
-
-	//New() method from internal/logger/logger.go
-	appLogger := logger.New(cfg.LogLevel)
-
-	//SetupRouter func from internal/router/router.go
-	app := router.SetupRouter(appLogger) //SetupRouter() returns an engine, so we could use engine method i.e Run()
-
-	appLogger.Info("Starting GoMerce server...",
-					slog.String("environment", cfg.AppEnv),
-					slog.String("port", cfg.AppPort))
-
-	if err := app.Run(":" + cfg.AppPort); err != nil {
-		appLogger.Error("Failed to start server", slog.String("error", err.Error()))
-
-		os.Exit(1)
-	}
+        os.Exit(1)
+    }
 }
 
+func run() error {
+    cfg, err := config.Load()
+    if err != nil {
+        slog.Error("Failed to load configuration", slog.String("error", err.Error()),
+        )
+
+        return err
+    }
+
+    //New() method from internal/logger/logger.go
+    appLogger := logger.New(cfg.LogLevel)
+
+    //SetupRouter func from internal/router/router.go
+    app := router.SetupRouter(appLogger) //SetupRouter() returns an engine, so we could use engine method i.e Run()
+
+    // Configure HTTP server.
+    server := &http.Server{
+        Addr:              ":" + cfg.AppPort,
+        Handler:           app,
+        ReadHeaderTimeout: 5 * time.Second,
+    }
+
+    // Start server in a separate goroutine.
+    serverErrors := make(chan error, 1)
+
+    go func() {
+        appLogger.Info("Starting GoMerce server...",
+        slog.String("environment", cfg.AppEnv),
+        slog.String("port", cfg.AppPort),
+        )
+
+        serverErrors <- server.ListenAndServe()
+    }()
+
+    // Listen for operating system shutdown signals.
+    stop := make(chan os.Signal, 1)
+    signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+    defer signal.Stop(stop)
+
+    // Wait for either a shutdown signal or server error.
+    select {
+    case sig := <-stop:
+        appLogger.Info("Shutdown signal received",
+            slog.String("signal", sig.String()),
+        )
+
+    case err := <-serverErrors:
+        if !errors.Is(err, http.ErrServerClosed) {
+            return err
+        }
+
+        return nil
+    }
+
+    // Give active requests up to 10 seconds to finish.
+    ctx, cancel := context.WithTimeout(
+        context.Background(),
+        10*time.Second,
+    )
+    defer cancel()
+
+    appLogger.Info("Shutting down GoMerce server...")
+
+    if err := server.Shutdown(ctx); err != nil {
+        appLogger.Error("Graceful shutdown failed",
+            slog.String("error", err.Error()),
+        )
+
+        // Force shutdown if graceful shutdown times out.
+        if closeErr := server.Close(); closeErr != nil {
+            return errors.Join(err, closeErr)
+        }
+
+        return err
+    }
+
+    appLogger.Info("GoMerce server stopped successfully")
+
+    return nil
+}
