@@ -2,6 +2,8 @@ package handler
 
 import (
 	"errors"
+	"reflect"
+	"strings"
 
 	"gomerce/internal/response"
 
@@ -31,21 +33,9 @@ func (h *ProductHandler) Create(c *gin.Context) {
 		var validationErrors validator.ValidationErrors
 		//checks if error from validation
 		if errors.As(err, &validationErrors) {
-			details := make(map[string]string)
-			//if error from validation, checks which field is error
-			for _, fieldErr := range validationErrors {
-				field := fieldErr.Field()
-
-				switch fieldErr.Tag() {
-                case "required":
-                    details[field] = "This field is required"
-                case "gt":
-                    details[field] = "Must be greater than zero"
-                case "gte":
-                    details[field] = "Must be zero or greater"
-                }
-			}
-			//if the error comes from validation, this will be showed
+			//This line do : read validation error, take field name from JSON tag, choose error message, return err
+			details := validationDetails(request, validationErrors)
+			
 			response.Fail(c, 400, "VALIDATION_ERROR", "Request Validation Failed", details)
 
 			return
@@ -55,6 +45,55 @@ func (h *ProductHandler) Create(c *gin.Context) {
 		
 		return
 	}
+	//Checks if name that is given is empty space or just space
+	request.Name = strings.TrimSpace(request.Name)
+
+	if request.Name == "" {
+		response.Fail(c, 400, "VALIDATION_ERROR", "Request Validation Failed",
+					  map[string]string{"name":"This field is required"})
+
+		return
+	}
+
 	//if success or nothing went wrong returns 201 status created
 	response.Success(c, 201, request)
+}
+
+//Helper function, converts  Go Struct field like name to json format. i.e (Name -> name or Price -> price)
+func getJSONFieldName(request any, fieldName string) string {
+	requestType := reflect.TypeOf(request)
+
+	field, ok := requestType.FieldByName(fieldName)
+
+	if !ok {
+		return fieldName
+	}
+
+	jsonTag := field.Tag.Get("json")
+
+	if jsonTag == "" {
+		return fieldName
+	} 
+
+	return strings.Split(jsonTag, ",")[0]
+}
+
+//If error comes from validation, this function gives the details based on what went wrong
+func validationDetails(request any, validationErrors validator.ValidationErrors) map[string]string {
+	details := make(map[string]string)
+
+	for _, fieldErr := range validationErrors {
+		field := getJSONFieldName(request, fieldErr.Field())
+
+		switch fieldErr.Tag() {
+        case "required":
+            details[field] = "This field is required"
+        case "gt":
+            details[field] = "Must be greater than zero"
+        case "gte":
+            details[field] = "Must be zero or greater"
+        }
+	}
+
+	return details
 }
