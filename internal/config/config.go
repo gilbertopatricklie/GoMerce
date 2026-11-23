@@ -12,6 +12,7 @@ type Config struct {
 	AppEnv		string
 	AppPort		string
 	LogLevel	slog.Level
+    DatabaseURL string
 }
 //This load function purpose is to load all configuration needed by the backend service
 func Load() (*Config, error) {
@@ -30,10 +31,18 @@ func Load() (*Config, error) {
         return nil, err
     }
 
+    //To get DATABASE_URL from env file
+    databaseURL := getEnv("DATABASE_URL", "")
+
+    if databaseURL == "" {
+        return nil, fmt.Errorf("DATABASE_URL is required")
+    }
+
     cfg := &Config{
         AppEnv:   getEnv("APP_ENV", "development"),
         AppPort:  port,
         LogLevel: logLevel,
+        DatabaseURL: databaseURL,
     }
 
     return cfg, nil

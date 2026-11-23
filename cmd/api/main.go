@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -11,8 +12,11 @@ import (
 	"time"
 
 	"gomerce/internal/config"
+	"gomerce/internal/database"
 	"gomerce/internal/logger"
 	"gomerce/internal/router"
+
+	"github.com/joho/godotenv"
 )
 
 func main() {
@@ -26,6 +30,12 @@ func main() {
 }
 
 func run() error {
+    if err := godotenv.Load(); err != nil {
+        if !errors.Is(err, os.ErrNotExist) {
+            return fmt.Errorf("Load environment variables: %w", err)
+        }
+    }
+
     cfg, err := config.Load()
     if err != nil {
         slog.Error("Failed to load configuration", slog.String("error", err.Error()),
@@ -36,6 +46,16 @@ func run() error {
 
     //New() method from internal/logger/logger.go
     appLogger := logger.New(cfg.LogLevel)
+
+    dbPool, err := database.NewPostgresPool(context.Background(), cfg.DatabaseURL)
+
+    if err != nil {
+        return err
+    }
+
+    defer dbPool.Close()
+
+    appLogger.Info("PostgreSQL connection established")
 
     //SetupRouter func from internal/router/router.go
     app := router.SetupRouter(appLogger) //SetupRouter() returns an engine, so we could use engine method i.e Run()
