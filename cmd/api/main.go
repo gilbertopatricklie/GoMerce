@@ -14,7 +14,9 @@ import (
 	"gomerce/internal/config"
 	"gomerce/internal/database"
 	"gomerce/internal/logger"
+	"gomerce/internal/repository"
 	"gomerce/internal/router"
+    "gomerce/internal/service"
 
 	"github.com/joho/godotenv"
 )
@@ -57,8 +59,11 @@ func run() error {
 
     appLogger.Info("PostgreSQL connection established")
 
+    productRepo := repository.NewProductRepository(dbPool)
+    productService := service.NewProductService(productRepo)
+
     //SetupRouter func from internal/router/router.go
-    app := router.SetupRouter(appLogger) //SetupRouter() returns an engine, so we could use engine method i.e Run()
+    app := router.SetupRouter(appLogger, productService) //SetupRouter() returns an engine, so we could use engine method i.e Run()
 
     // Configure HTTP server.
     server := &http.Server{

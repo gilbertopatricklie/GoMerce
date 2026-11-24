@@ -6,12 +6,13 @@ import (
 	"gomerce/internal/handler"
 	"gomerce/internal/middleware"
 	"gomerce/internal/response"
+	"gomerce/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
 
 //This function returns engine so later wherever this func is imported, using engine method is possible
-func SetupRouter(logger *slog.Logger) *gin.Engine {
+func SetupRouter(logger *slog.Logger, productService *service.ProductService) *gin.Engine {
 	router := gin.New()
 
 	router.HandleMethodNotAllowed = true
@@ -33,7 +34,7 @@ func SetupRouter(logger *slog.Logger) *gin.Engine {
 
 	//Routes Handlers
 	healthHandler := handler.NewHealthHandler()
-	productHandler := handler.NewProductHandler()
+	productHandler := handler.NewProductHandler(productService)
 
 	//Endpoint Method
 	router.GET("/health", healthHandler.Check)

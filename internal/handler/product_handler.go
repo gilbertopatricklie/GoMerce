@@ -5,7 +5,9 @@ import (
 	"reflect"
 	"strings"
 
+	"gomerce/internal/model"
 	"gomerce/internal/response"
+	"gomerce/internal/service"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
@@ -19,10 +21,14 @@ type CreateProductRequest struct {
 	Stock	int		`json:"stock" binding:"gte=0"`
 }
 
-type ProductHandler struct{}
+type ProductHandler struct{
+	service *service.ProductService
+}
 
-func NewProductHandler() *ProductHandler {
-	return &ProductHandler{}
+func NewProductHandler(productService *service.ProductService) *ProductHandler {
+	return &ProductHandler{
+		service: productService,
+	}
 }
 
 //Function for client to create request, with validator so client couldn't send wrong data
@@ -55,8 +61,20 @@ func (h *ProductHandler) Create(c *gin.Context) {
 		return
 	}
 
+	product := &model.Product{
+		Name: request.Name,
+		Price: request.Price,
+		Stock: request.Stock,
+	}
+
+	if err := h.service.Create(c.Request.Context(), product); err != nil {
+		response.Fail(c, 500, "INTERNAL_SERVER_ERROR", "Failed To Create Product", nil)
+
+		return
+	}
+	
 	//if success or nothing went wrong returns 201 status created
-	response.Success(c, 201, request)
+	response.Success(c, 201, product)
 }
 
 //Helper function, converts  Go Struct field like name to json format. i.e (Name -> name or Price -> price)
