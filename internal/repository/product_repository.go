@@ -161,3 +161,40 @@ func (r *ProductRepository) Delete(ctx context.Context, id int64) error {
 
 	return nil
 }
+
+//This method is to create multiple product at once
+func (r *ProductRepository) CreateBatch(ctx context.Context, products []model.Product) error {
+	//Begin Transacstion
+	tx, err := r.db.Begin(ctx)
+
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+
+	//Automate rollback if transaction not committed
+	defer tx.Rollback(ctx)
+
+	query := `INSERT into products (name, description, price, stock) VALUES($1, $2, $3, $4)`
+
+	for _, product := range products {
+		_, err := tx.Exec(
+			ctx,
+			query,
+			product.Name,
+			product.Description,
+			product.Price,
+			product.Stock,
+		)
+
+		if err != nil {
+			return fmt.Errorf("insert product %q: %w", product.Name, err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit transction: %w", err)
+		
+	}
+	
+	return nil
+}

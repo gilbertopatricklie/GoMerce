@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"gomerce/internal/model"
@@ -11,11 +12,19 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
+	"github.com/jackc/pgx/v5"
 )
 
 //Request Data Transfer Object (DTO) or a struct that will be used to receive or send data within API
 //This struct make sure client can only send field that is allowed, not allowed example: (id, created at)
 type CreateProductRequest struct {
+	Name 	string	`json:"name" binding:"required"`
+	Price	int64	`json:"price" binding:"gt=0"`
+	Stock	int		`json:"stock" binding:"gte=0"`
+}
+
+//Same as above, just for updating.
+type UpdateProductRequest struct {
 	Name 	string	`json:"name" binding:"required"`
 	Price	int64	`json:"price" binding:"gt=0"`
 	Stock	int		`json:"stock" binding:"gte=0"`
@@ -114,4 +123,123 @@ func validationDetails(request any, validationErrors validator.ValidationErrors)
 	}
 
 	return details
+}
+
+func (h *ProductHandler) GetAll(c *gin.Context) {
+	products, err := h.service.GetAll(c.Request.Context())
+
+	if err != nil {
+		response.Fail(c, 500, "INTENAL_SERVER_ERROR", "Failed To Retrieve Products", nil)
+		
+		return
+	}
+
+	response.Success(c, 200, products)
+}
+
+func (h *ProductHandler) GetByID(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+
+	if err != nil || id <= 0 {
+		response.Fail(c, 400, "INVALID_PRODUCT_ID", "Product ID Must be A Positive Integer", nil)
+
+		return
+	}
+
+	product, err := h.service.GetByID(c.Request.Context(), id)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			response.Fail(c, 404, "PRODUCT_NOT_FOUND", "Product Not Found", nil)
+
+			return
+		}
+
+		response.Fail(c, 500, "INTERNAL_SERVER_ERROR", "Failed To Retrieve Product", nil)
+
+		return
+	}
+
+	response.Success(c, 200, product)
+}
+
+func (h *ProductHandler) Update(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+
+	if err != nil || id <= 0 {
+		response.Fail(c, 400, "INVALID_PRODUCT_ID", "Product ID Must be A Positive Integer", nil)
+
+		return
+	}
+
+	var request UpdateProductRequest
+
+	if err := c.ShouldBindJSON(&request); err != nil {
+		var validationErrors validator.ValidationErrors
+
+		if errors.As(err, &validationErrors) {
+			details := validationDetails(request, validationErrors)
+
+			response.Fail(c, 400, "VALIDATION_ERROR", "Request Validation Failed", details)
+
+			return
+		}
+
+		response.Fail(c, 400, "INVALID_JSON", "Invalid Body Request", nil)
+
+		return
+	}
+
+	request.Name = strings.TrimSpace(request.Name)
+
+	if request.Name == "" {
+		response.Fail(c, 400, "VALIDATION_ERROR", "Request Validation Error", map[string]string{"name":"Field required"})
+
+		return
+	}
+
+	product := &model.Product{
+		ID:    id,
+        Name:  request.Name,
+        Price: request.Price,
+        Stock: request.Stock,
+	}
+
+	if err := h.service.Update(c.Request.Context(), product); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			response.Fail(c, 404, "PRODUCT_NOT_FOUND", "Product Not Found", nil)
+
+			return
+		}
+
+		response.Fail(c, 500, "INTERNAL_SERVER_ERROR", "Failed To Update Product", nil)
+
+		return
+	}
+
+	response.Success(c, 200, gin.H{"message": "Product updated successfully"})
+}
+
+func (h *ProductHandler) Delete(c *gin.Context){
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+
+	if err != nil || id <= 0 {
+		response.Fail(c, 400, "INVALID_PRODUCT_ID", "Product ID Must be A Positive Integer", nil)
+
+		return
+	}
+
+	if err := h.service.Delete(c.Request.Context(), id); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			response.Fail(c, 404, "PRODUCT_NOT_FOUND", "Product Not Found", nil)
+
+			return
+		}
+
+		response.Fail(c, 500, "INTERNAL_SERVER_ERROR", "Failed To Delete Product", nil)
+
+		return
+	}
+
+	c.Status(204)
 }

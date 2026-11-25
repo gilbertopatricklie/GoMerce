@@ -36,9 +36,14 @@ func SetupRouter(logger *slog.Logger, productService *service.ProductService) *g
 	healthHandler := handler.NewHealthHandler()
 	productHandler := handler.NewProductHandler(productService)
 
-	//Endpoint Method
+	//Health Endpoint
 	router.GET("/health", healthHandler.Check)
+	//Product Endpoint
 	router.POST("/products", productHandler.Create)
+	router.GET("/products", productHandler.GetAll)
+	router.GET("/products/:id", productHandler.GetByID)
+	router.PUT("/products/:id", productHandler.Update)
+	router.DELETE("/products/:id", productHandler.Delete)
 
 	return router
 }

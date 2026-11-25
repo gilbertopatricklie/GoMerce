@@ -16,7 +16,7 @@ import (
 	"gomerce/internal/logger"
 	"gomerce/internal/repository"
 	"gomerce/internal/router"
-    "gomerce/internal/service"
+	"gomerce/internal/service"
 
 	"github.com/joho/godotenv"
 )
