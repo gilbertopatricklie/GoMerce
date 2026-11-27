@@ -4,6 +4,10 @@ import (
 	"fmt"
 	"strconv"
 	"time"
+	"crypto/rand"
+	"encoding/base64"
+	"crypto/sha256"
+	"encoding/hex"
 
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -56,3 +60,40 @@ func (m *TokenManager) GenerateAccessToken(userID int64,role string) (string, ti
 
 	return signedToken, expiresAt, nil
 }
+
+func (m *TokenManager) ParseAccessToken(tokenString string) (*Claims, error) {
+	claims := &Claims{}
+
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (any, error) {
+		return m.secret, nil
+	},
+	jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+	jwt.WithIssuer("gomerce"), jwt.WithExpirationRequired(),
+	) 
+
+	if err != nil {
+		return nil, fmt.Errorf("parse access token: %w", err)
+	}
+
+	if !token.Valid {
+		return nil, fmt.Errorf("invalid access token")
+	}
+
+	return claims, nil
+}
+
+func GenerateRefreshToken() (string, error) {
+	bytes := make([]byte, 32)
+
+	if _, err := rand.Read(bytes); err != nil {
+		return "", fmt.Errorf("generate refresh token: %w", err)
+	}
+
+	return base64.RawURLEncoding.EncodeToString(bytes), nil
+}
+
+func HashRefreshToken(token string) string {
+	hash := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(hash[:])
+}
+

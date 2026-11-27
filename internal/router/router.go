@@ -2,6 +2,7 @@ package router
 
 import (
 	"log/slog"
+	"time"
 
 	"gomerce/internal/handler"
 	"gomerce/internal/middleware"
@@ -15,7 +16,7 @@ import (
 //This function returns engine so later wherever this func is imported, using engine method is possible
 func SetupRouter(logger *slog.Logger, productService *service.ProductService,
 				 categoryService *service.CategoryService, userService *service.UserService,
-				 tokenManager *security.TokenManager) *gin.Engine {
+				 tokenManager *security.TokenManager, refreshTTL time.Duration) *gin.Engine {
 
 	router := gin.New()
 
@@ -40,7 +41,7 @@ func SetupRouter(logger *slog.Logger, productService *service.ProductService,
 	healthHandler := handler.NewHealthHandler()
 	productHandler := handler.NewProductHandler(productService)
 	categoryHandler := handler.NewCategoryHandler(categoryService)
-	authHandler := handler.NewAuthHandler(userService, tokenManager)
+	authHandler := handler.NewAuthHandler(userService, tokenManager, refreshTTL)
 
 	//Health Endpoint
 	router.GET("/health", healthHandler.Check)
@@ -58,6 +59,7 @@ func SetupRouter(logger *slog.Logger, productService *service.ProductService,
 	//User Endpoint
 	router.POST("/auth/signup", authHandler.SignUp)
 	router.POST("/auth/signin", authHandler.SignIn)
+	router.POST("/auth/refresh", authHandler.Refresh)
 
 	return router
 }

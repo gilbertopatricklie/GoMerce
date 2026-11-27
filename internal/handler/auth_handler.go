@@ -2,10 +2,12 @@ package handler
 
 import (
 	"errors"
+	"net/http"
 	"net/mail"
 	"time"
 
 	"gomerce/internal/model"
+	"gomerce/internal/repository"
 	"gomerce/internal/response"
 	"gomerce/internal/security"
 	"gomerce/internal/service"
@@ -16,12 +18,14 @@ import (
 type AuthHandler struct {
 	service *service.UserService
 	tokenManager *security.TokenManager
+	refreshTTL time.Duration
 }
 
-func NewAuthHandler(userService *service.UserService, tokenManager *security.TokenManager) *AuthHandler {
+func NewAuthHandler(userService *service.UserService, tokenManager *security.TokenManager, refreshTTL time.Duration) *AuthHandler {
 	return &AuthHandler{
 		service: userService,
 		tokenManager: tokenManager,
+		refreshTTL: refreshTTL,
 	}
 }
 
@@ -38,9 +42,14 @@ type SignInRequest struct {
 
 type SignInResponse struct {
 	AccessToken string      `json:"access_token"`
+	RefreshToken string      `json:"refresh_token"`
 	TokenType   string      `json:"token_type"`
 	ExpiresIn   int64       `json:"expires_in"`
 	User        *model.User `json:"user"`
+}
+
+type RefreshRequest struct {
+	RefreshToken string `json:"refresh_token" binding:"required"`
 }
 
 func validEmail(email string) bool {
@@ -129,12 +138,68 @@ func (h *AuthHandler) SignIn(c *gin.Context) {
 		return
 	}
 
+	refreshToken, err := h.service.CreateRefreshToken(c.Request.Context(), user.ID, h.refreshTTL,)
+	if err != nil {
+		response.Fail(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to generate refresh token", nil)
+		return
+	}
+
 	result := SignInResponse{
 		AccessToken: accessToken,
+		RefreshToken: refreshToken,
 		TokenType:   "Bearer",
 		ExpiresIn:   int64(time.Until(expiresAt).Seconds()),
 		User:        user,
 	}
 
 	response.Success(c, 200, result)
+}
+
+
+func (h *AuthHandler) Refresh(c *gin.Context) {
+	var req RefreshRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, 400, "VALIDATION_ERROR", "Refresh token is required", nil)
+		return
+	}
+
+	userID, role, newRefreshToken, err := h.service.RotateRefreshToken(
+		c.Request.Context(),
+		req.RefreshToken,
+		h.refreshTTL,
+	)
+
+	if err != nil {
+		if errors.Is(err, repository.ErrInvalidRefreshToken) ||
+			errors.Is(err, repository.ErrRefreshTokenReuse) {
+			response.Fail(c, http.StatusUnauthorized, "INVALID_REFRESH_TOKEN", "Refresh token is invalid or expired", nil)
+			return
+		}
+
+		response.Fail(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to refresh token", nil)
+		return
+	}
+
+	accessToken, expiresAt, err := h.tokenManager.GenerateAccessToken(
+		userID,
+		role,
+	)
+	if err != nil {
+		response.Fail(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to generate access token", nil)
+		return
+	}
+
+	result := SignInResponse{
+		AccessToken:  accessToken,
+		RefreshToken: newRefreshToken,
+		TokenType:    "Bearer",
+		ExpiresIn:    int64(time.Until(expiresAt).Seconds()),
+		User: &model.User{
+			ID:   userID,
+			Role: role,
+		},
+	}
+
+	response.Success(c, http.StatusOK, result)
 }

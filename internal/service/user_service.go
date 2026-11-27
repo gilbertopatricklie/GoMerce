@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"gomerce/internal/model"
 	"gomerce/internal/repository"
@@ -22,11 +23,13 @@ var (
 
 type UserService struct {
 	repo *repository.UserRepository
+	refreshRepo *repository.RefreshTokenRepository
 }
 
-func NewUserService(repo *repository.UserRepository) *UserService {
+func NewUserService(repo *repository.UserRepository, refreshRepo *repository.RefreshTokenRepository) *UserService {
 	return &UserService{
 		repo: repo,
+		refreshRepo: refreshRepo,
 	}
 }
 
@@ -89,4 +92,46 @@ func (s *UserService) SignIn(ctx context.Context,email, password string) (*model
 	}
 
 	return user, nil
+}
+
+func (s *UserService) CreateRefreshToken(ctx context.Context, userID int64, ttl time.Duration) (string, error) {
+	token, err := security.GenerateRefreshToken()
+	if err != nil {
+		return "", err
+	}
+
+	expiresAt := time.Now().Add(ttl)
+	tokenHash := security.HashRefreshToken(token)
+
+	if err := s.refreshRepo.Create(
+		ctx,
+		userID,
+		tokenHash,
+		expiresAt,
+	); err != nil {
+		return "", err
+	}
+
+	return token, nil
+}
+
+func (s *UserService) RotateRefreshToken(ctx context.Context, oldToken string, ttl time.Duration,) (int64, string, string, error) {
+	newToken, err := security.GenerateRefreshToken()
+	if err != nil {
+		return 0, "", "", err
+	}
+
+	newExpiresAt := time.Now().Add(ttl)
+
+	data, err := s.refreshRepo.Rotate(
+		ctx,
+		security.HashRefreshToken(oldToken),
+		security.HashRefreshToken(newToken),
+		newExpiresAt,
+	)
+	if err != nil {
+		return 0, "", "", err
+	}
+
+	return data.UserID, data.Role, newToken, nil
 }

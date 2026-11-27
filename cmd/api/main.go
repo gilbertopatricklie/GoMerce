@@ -73,10 +73,12 @@ func run() error {
     categoryService := service.NewCategoryService(categoryRepo)
 
     userRepo := repository.NewUserRepository(dbPool)
-    userService := service.NewUserService(userRepo)
+    refreshRepo := repository.NewRefreshTokenRepository(dbPool)
+    userService := service.NewUserService(userRepo, refreshRepo)
 
     //SetupRouter func from internal/router/router.go
-    app := router.SetupRouter(appLogger, productService, categoryService, userService, tokenManager) //SetupRouter() returns an engine, so we could use engine method i.e Run()
+     //SetupRouter() returns an engine, so we could use engine method i.e Run()
+    app := router.SetupRouter(appLogger, productService, categoryService, userService, tokenManager, cfg.JWTRefreshTTL)
 
     // Configure HTTP server.
     server := &http.Server{

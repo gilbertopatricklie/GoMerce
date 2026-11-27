@@ -16,6 +16,7 @@ type Config struct {
     DatabaseURL     string
     JWTAccessSecret string
     JWTAccessTTL    time.Duration
+    JWTRefreshTTL   time.Duration
 }
 //This load function purpose is to load all configuration needed by the backend service
 func Load() (*Config, error) {
@@ -43,6 +44,15 @@ func Load() (*Config, error) {
         return nil, fmt.Errorf("JWT_ACCESS_TTL must be positive")
     }
 
+    refreshTTL, err := time.ParseDuration(os.Getenv("JWT_REFRESH_TTL"))
+    if err != nil {
+        return nil, fmt.Errorf("invalid JWT_REFRESH_TTL: %w", err)
+    }
+
+    if refreshTTL <= 0 {
+        return nil, fmt.Errorf("JWT_REFRESH_TTL must be positive")
+    }
+
     //To get DATABASE_URL from env file
     databaseURL := getEnv("DATABASE_URL", "")
 
@@ -57,6 +67,7 @@ func Load() (*Config, error) {
         DatabaseURL: databaseURL,
         JWTAccessSecret: os.Getenv("JWT_ACCESS_SECRET"),
         JWTAccessTTL: jwtTTL,
+        JWTRefreshTTL: refreshTTL,
     }
 
     return cfg, nil
