@@ -6,13 +6,16 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Config struct {
-	AppEnv		string
-	AppPort		string
-	LogLevel	slog.Level
-    DatabaseURL string
+	AppEnv		    string
+	AppPort		    string
+	LogLevel	    slog.Level
+    DatabaseURL     string
+    JWTAccessSecret string
+    JWTAccessTTL    time.Duration
 }
 //This load function purpose is to load all configuration needed by the backend service
 func Load() (*Config, error) {
@@ -31,6 +34,15 @@ func Load() (*Config, error) {
         return nil, err
     }
 
+    jwtTTL, err := time.ParseDuration(os.Getenv("JWT_ACCESS_TTL"))
+    if err != nil {
+        return nil, fmt.Errorf("invalid JWT_ACCESS_TTL: %w", err)
+    }
+
+    if jwtTTL <= 0 {
+        return nil, fmt.Errorf("JWT_ACCESS_TTL must be positive")
+    }
+
     //To get DATABASE_URL from env file
     databaseURL := getEnv("DATABASE_URL", "")
 
@@ -43,6 +55,8 @@ func Load() (*Config, error) {
         AppPort:  port,
         LogLevel: logLevel,
         DatabaseURL: databaseURL,
+        JWTAccessSecret: os.Getenv("JWT_ACCESS_SECRET"),
+        JWTAccessTTL: jwtTTL,
     }
 
     return cfg, nil

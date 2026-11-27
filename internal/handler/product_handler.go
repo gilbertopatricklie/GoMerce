@@ -77,7 +77,7 @@ func (h *ProductHandler) Create(c *gin.Context) {
 	}
 
 	if err := h.service.Create(c.Request.Context(), product); err != nil {
-		response.Fail(c, 500, "INTERNAL_SERVER_ERROR", "Failed To Create Product", nil)
+		response.Fail(c, 500, "INTERNAL_SERVER_ERROR", "Failed To Create Product, perhaps already exist?", nil)
 
 		return
 	}

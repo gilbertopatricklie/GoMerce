@@ -24,3 +24,12 @@ func (s *CategoryService) Create(ctx context.Context, category *model.Category) 
 func (s *CategoryService) GetAll(ctx context.Context) ([]model.Category, error) {
 	return s.repo.GetAll(ctx)
 }
+
+func (s *CategoryService) Update(ctx context.Context, category *model.Category) error {
+	return s.repo.Update(ctx, category)
+}
+
+func (s *CategoryService) Delete(ctx context.Context, id int64) error {
+	return s.repo.Delete(ctx, id)
+}
+

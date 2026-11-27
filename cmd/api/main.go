@@ -16,6 +16,7 @@ import (
 	"gomerce/internal/logger"
 	"gomerce/internal/repository"
 	"gomerce/internal/router"
+	"gomerce/internal/security"
 	"gomerce/internal/service"
 
 	"github.com/joho/godotenv"
@@ -46,6 +47,12 @@ func run() error {
         return err
     }
 
+    tokenManager, err := security.NewTokenManager(cfg.JWTAccessSecret,cfg.JWTAccessTTL)
+    
+    if err != nil {
+        return fmt.Errorf("initialize token manager: %w", err)
+    }
+
     //New() method from internal/logger/logger.go
     appLogger := logger.New(cfg.LogLevel)
 
@@ -62,8 +69,14 @@ func run() error {
     productRepo := repository.NewProductRepository(dbPool)
     productService := service.NewProductService(productRepo)
 
+    categoryRepo := repository.NewCategoryRepository(dbPool)
+    categoryService := service.NewCategoryService(categoryRepo)
+
+    userRepo := repository.NewUserRepository(dbPool)
+    userService := service.NewUserService(userRepo)
+
     //SetupRouter func from internal/router/router.go
-    app := router.SetupRouter(appLogger, productService) //SetupRouter() returns an engine, so we could use engine method i.e Run()
+    app := router.SetupRouter(appLogger, productService, categoryService, userService, tokenManager) //SetupRouter() returns an engine, so we could use engine method i.e Run()
 
     // Configure HTTP server.
     server := &http.Server{

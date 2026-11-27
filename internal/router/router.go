@@ -6,13 +6,17 @@ import (
 	"gomerce/internal/handler"
 	"gomerce/internal/middleware"
 	"gomerce/internal/response"
+	"gomerce/internal/security"
 	"gomerce/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
 
 //This function returns engine so later wherever this func is imported, using engine method is possible
-func SetupRouter(logger *slog.Logger, productService *service.ProductService) *gin.Engine {
+func SetupRouter(logger *slog.Logger, productService *service.ProductService,
+				 categoryService *service.CategoryService, userService *service.UserService,
+				 tokenManager *security.TokenManager) *gin.Engine {
+
 	router := gin.New()
 
 	router.HandleMethodNotAllowed = true
@@ -35,6 +39,8 @@ func SetupRouter(logger *slog.Logger, productService *service.ProductService) *g
 	//Routes Handlers
 	healthHandler := handler.NewHealthHandler()
 	productHandler := handler.NewProductHandler(productService)
+	categoryHandler := handler.NewCategoryHandler(categoryService)
+	authHandler := handler.NewAuthHandler(userService, tokenManager)
 
 	//Health Endpoint
 	router.GET("/health", healthHandler.Check)
@@ -44,6 +50,14 @@ func SetupRouter(logger *slog.Logger, productService *service.ProductService) *g
 	router.GET("/products/:id", productHandler.GetByID)
 	router.PUT("/products/:id", productHandler.Update)
 	router.DELETE("/products/:id", productHandler.Delete)
+	//Category Endpoint
+	router.POST("/categories", categoryHandler.Create)
+	router.GET("/categories", categoryHandler.GetAll)
+	router.PUT("/categories", categoryHandler.Update)
+	router.DELETE("/categories", categoryHandler.Delete)
+	//User Endpoint
+	router.POST("/auth/signup", authHandler.SignUp)
+	router.POST("/auth/signin", authHandler.SignIn)
 
 	return router
 }

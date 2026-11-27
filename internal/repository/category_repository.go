@@ -6,6 +6,7 @@ import (
 
 	"gomerce/internal/model"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -63,4 +64,36 @@ func (r *CategoryRepository) GetAll(ctx context.Context) ([]model.Category, erro
 	}
 
 	return categories, nil
+}
+
+func (r *CategoryRepository) Update(ctx context.Context, category *model.Category) error {
+	query := `UPDATE categories SET name = $1 WHERE id = $2`
+
+	tag, err := r.db.Exec(ctx, query, category.Name, category.ID)
+
+	if err != nil {
+		return fmt.Errorf("update category: %w", err)
+	}
+
+	if tag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+
+	return nil
+}
+
+func (r *CategoryRepository) Delete(ctx context.Context, id int64) error {
+	query := `DELETE FROM categories WHERE id = $1`
+
+	tag, err := r.db.Exec(ctx, query, id)
+
+	if err != nil {
+		return fmt.Errorf("delete category: %w", err)
+	}
+
+	if tag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+
+	return nil
 }
