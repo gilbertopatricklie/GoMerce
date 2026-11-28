@@ -46,16 +46,22 @@ func SetupRouter(logger *slog.Logger, productService *service.ProductService,
 	//Health Endpoint
 	router.GET("/health", healthHandler.Check)
 	//Product Endpoint
-	router.POST("/products", productHandler.Create)
 	router.GET("/products", productHandler.GetAll)
 	router.GET("/products/:id", productHandler.GetByID)
-	router.PUT("/products/:id", productHandler.Update)
-	router.DELETE("/products/:id", productHandler.Delete)
+	//Admin products exclusive Endpoint
+	adminProducts := router.Group("/products")
+	adminProducts.Use(middleware.AuthRequired(tokenManager), middleware.RequireRole("admin"))
+	adminProducts.POST("", productHandler.Create)
+	adminProducts.PUT("/:id", productHandler.Update)
+	adminProducts.DELETE("/:id", productHandler.Delete)
 	//Category Endpoint
-	router.POST("/categories", categoryHandler.Create)
 	router.GET("/categories", categoryHandler.GetAll)
-	router.PUT("/categories", categoryHandler.Update)
-	router.DELETE("/categories", categoryHandler.Delete)
+	//Admin categories exclusive Endpoint
+	adminCategories := router.Group("/categories")
+	adminCategories.Use(middleware.AuthRequired(tokenManager), middleware.RequireRole("admin"))
+	router.POST("", categoryHandler.Create)
+	router.PUT("/:id", categoryHandler.Update)
+	router.DELETE("/:id", categoryHandler.Delete)
 	//User Endpoint
 	router.POST("/auth/signup", authHandler.SignUp)
 	router.POST("/auth/signin", authHandler.SignIn)

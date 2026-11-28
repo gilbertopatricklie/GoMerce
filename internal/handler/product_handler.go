@@ -18,16 +18,18 @@ import (
 //Request Data Transfer Object (DTO) or a struct that will be used to receive or send data within API
 //This struct make sure client can only send field that is allowed, not allowed example: (id, created at)
 type CreateProductRequest struct {
-	Name 	string	`json:"name" binding:"required"`
-	Price	int64	`json:"price" binding:"gt=0"`
-	Stock	int		`json:"stock" binding:"gte=0"`
+	Name 		string	`json:"name" binding:"required"`
+	Price		int64	`json:"price" binding:"gt=0"`
+	Stock		int		`json:"stock" binding:"gte=0"`
+	Description	string 	`json:"description"`
 }
 
 //Same as above, just for updating.
 type UpdateProductRequest struct {
-	Name 	string	`json:"name" binding:"required"`
-	Price	int64	`json:"price" binding:"gt=0"`
-	Stock	int		`json:"stock" binding:"gte=0"`
+	Name 		string	`json:"name" binding:"required"`
+	Price		int64	`json:"price" binding:"gt=0"`
+	Stock		int		`json:"stock" binding:"gte=0"`
+	Description	string 	`json:"description"`
 }
 
 type ProductHandler struct{
@@ -74,6 +76,7 @@ func (h *ProductHandler) Create(c *gin.Context) {
 		Name: request.Name,
 		Price: request.Price,
 		Stock: request.Stock,
+		Description: &request.Description,
 	}
 
 	if err := h.service.Create(c.Request.Context(), product); err != nil {
@@ -203,6 +206,7 @@ func (h *ProductHandler) Update(c *gin.Context) {
         Name:  request.Name,
         Price: request.Price,
         Stock: request.Stock,
+		Description: &request.Description,
 	}
 
 	if err := h.service.Update(c.Request.Context(), product); err != nil {
